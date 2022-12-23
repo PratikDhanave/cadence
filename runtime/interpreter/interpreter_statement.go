@@ -47,12 +47,14 @@ func (interpreter *Interpreter) evalStatement(statement ast.Statement) Statement
 		debugger.onStatement(interpreter, statement)
 	}
 
+	res := ast.AcceptStatement[StatementResult](statement, interpreter)
+
 	onStatement := interpreter.Config.OnStatement
 	if onStatement != nil {
 		onStatement(interpreter, statement)
 	}
 
-	return ast.AcceptStatement[StatementResult](statement, interpreter)
+	return res
 }
 
 func (interpreter *Interpreter) visitStatements(statements []ast.Statement) StatementResult {

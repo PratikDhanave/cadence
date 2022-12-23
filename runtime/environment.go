@@ -565,13 +565,18 @@ func (e *interpreterEnvironment) newInterpreter(
 
 func (e *interpreterEnvironment) newOnStatementHandler() interpreter.OnStatementFunc {
 	if !e.config.CoverageReportingEnabled {
-		return nil
+		return e.config.OnStatement
 	}
 
 	return func(inter *interpreter.Interpreter, statement ast.Statement) {
 		location := inter.Location
 		line := statement.StartPosition().Line
 		e.coverageReport.AddLineHit(location, line)
+
+		// pass through to the configured on statement handler
+		if e.config.OnStatement != nil {
+			e.config.OnStatement(inter, statement)
+		}
 	}
 }
 

@@ -23,9 +23,9 @@ import (
 )
 
 // Config is a constant/read-only configuration of an environment.
-//
 type Config struct {
-	Debugger *interpreter.Debugger
+	Debugger    *interpreter.Debugger
+	OnStatement interpreter.OnStatementFunc
 	// AtreeValidationEnabled configures if atree validation is enabled.
 	AtreeValidationEnabled bool
 	// TracingEnabled configures if tracing is enabled.
