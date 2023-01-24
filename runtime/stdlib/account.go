@@ -1,7 +1,7 @@
 /*
  * Cadence - The resource-oriented smart contract programming language
  *
- * Copyright 2019-2022 Dapper Labs, Inc.
+ * Copyright Dapper Labs, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -1366,7 +1366,7 @@ type AccountContractAdditionHandler interface {
 	ParseAndCheckProgram(
 		code []byte,
 		location common.Location,
-		program bool,
+		getAndSetProgram bool,
 	) (*interpreter.Program, error)
 	// UpdateAccountContractCode updates the code associated with an account contract.
 	UpdateAccountContractCode(address common.Address, name string, code []byte) error
@@ -1486,12 +1486,12 @@ func newAuthAccountContractsChangeFunction(
 			// NOTE: *DO NOT* store the program – the new or updated program
 			// should not be effective during the execution
 
-			const storeProgram = false
+			const getAndSetProgram = false
 
 			program, err := handler.ParseAndCheckProgram(
 				code,
 				location,
-				storeProgram,
+				getAndSetProgram,
 			)
 			handleContractUpdateError(err)
 
