@@ -534,13 +534,13 @@ func (d *Decoder) decodeInt64() (cadence.Value, error) {
 // language=CDDL
 // int128-value = bigint
 func (d *Decoder) decodeInt128() (cadence.Value, error) {
-	bigInt, err := d.dec.DecodeBigInt()
-	if err != nil {
-		return nil, err
-	}
 	return cadence.NewMeteredInt128FromBig(
 		d.gauge,
 		func() *big.Int {
+			bigInt, err := d.dec.DecodeBigInt()
+			if err != nil {
+				panic(fmt.Errorf("failed to decode Int128: %s", err))
+			}
 			return bigInt
 		},
 	)
@@ -550,13 +550,13 @@ func (d *Decoder) decodeInt128() (cadence.Value, error) {
 // language=CDDL
 // int256-value = bigint
 func (d *Decoder) decodeInt256() (cadence.Value, error) {
-	bigInt, err := d.dec.DecodeBigInt()
-	if err != nil {
-		return nil, err
-	}
 	return cadence.NewMeteredInt256FromBig(
 		d.gauge,
 		func() *big.Int {
+			bigInt, err := d.dec.DecodeBigInt()
+			if err != nil {
+				panic(fmt.Errorf("failed to decode Int256: %s", err))
+			}
 			return bigInt
 		},
 	)
@@ -653,16 +653,14 @@ func (d *Decoder) decodeUInt64() (cadence.Value, error) {
 // language=CDDL
 // uint128-value = bigint .ge 0
 func (d *Decoder) decodeUInt128() (cadence.Value, error) {
-	bigInt, err := d.dec.DecodeBigInt()
-	if err != nil {
-		return nil, err
-	}
-	if bigInt.Sign() < 0 {
-		return nil, errors.New("encoded uint128-value is negative")
-	}
+	// NewMeteredUInt128FromBig checks if decoded big.Int is positive.
 	return cadence.NewMeteredUInt128FromBig(
 		d.gauge,
 		func() *big.Int {
+			bigInt, err := d.dec.DecodeBigInt()
+			if err != nil {
+				panic(fmt.Errorf("failed to decode UInt128: %s", err))
+			}
 			return bigInt
 		},
 	)
@@ -672,16 +670,14 @@ func (d *Decoder) decodeUInt128() (cadence.Value, error) {
 // language=CDDL
 // uint256-value = bigint .ge 0
 func (d *Decoder) decodeUInt256() (cadence.Value, error) {
-	bigInt, err := d.dec.DecodeBigInt()
-	if err != nil {
-		return nil, err
-	}
-	if bigInt.Sign() < 0 {
-		return nil, errors.New("encoded uint256-value is negative")
-	}
+	// NewMeteredUInt256FromBig checks if decoded big.Int is positive.
 	return cadence.NewMeteredUInt256FromBig(
 		d.gauge,
 		func() *big.Int {
+			bigInt, err := d.dec.DecodeBigInt()
+			if err != nil {
+				panic(fmt.Errorf("failed to decode UInt256: %s", err))
+			}
 			return bigInt
 		},
 	)
@@ -865,49 +861,51 @@ func (d *Decoder) decodeDictionary(typ *cadence.DictionaryType, types cadenceTyp
 		)
 	}
 
-	// previousKeyRawBytes is used to determine if dictionary keys are sorted
-	var previousKeyRawBytes []byte
-
-	pairCount := n / 2
-	pairs := make([]cadence.KeyValuePair, pairCount)
-	for i := 0; i < int(pairCount); i++ {
-		// element i: key
-
-		// Decode key as raw bytes to check that key pairs are sorted by key.
-		keyRawBytes, err := d.dec.DecodeRawBytes()
-		if err != nil {
-			return nil, err
-		}
-
-		// "Deterministic CCF Encoding Requirements" in CCF specs:
-		//
-		//   "dict-value key-value pairs MUST be sorted by key."
-		if !bytesAreSortedBytewise(previousKeyRawBytes, keyRawBytes) {
-			return nil, fmt.Errorf("encoded dict-value keys are not sorted")
-		}
-
-		previousKeyRawBytes = keyRawBytes
-
-		// decode key from raw bytes
-		keyDecoder := NewDecoder(d.gauge, keyRawBytes)
-		key, err := keyDecoder.decodeValue(typ.KeyType, types)
-		if err != nil {
-			return nil, err
-		}
-
-		// element i+1: value
-		element, err := d.decodeValue(typ.ElementType, types)
-		if err != nil {
-			return nil, err
-		}
-
-		pairs[i] = cadence.NewMeteredKeyValuePair(d.gauge, key, element)
-	}
+	pairCount := int(n / 2)
 
 	value, err := cadence.NewMeteredDictionary(
 		d.gauge,
-		len(pairs),
+		pairCount,
 		func() ([]cadence.KeyValuePair, error) {
+			pairs := make([]cadence.KeyValuePair, pairCount)
+
+			// previousKeyRawBytes is used to determine if dictionary keys are sorted
+			var previousKeyRawBytes []byte
+
+			for i := 0; i < pairCount; i++ {
+				// element i: key
+
+				// Decode key as raw bytes to check that key pairs are sorted by key.
+				keyRawBytes, err := d.dec.DecodeRawBytes()
+				if err != nil {
+					return nil, err
+				}
+
+				// "Deterministic CCF Encoding Requirements" in CCF specs:
+				//
+				//   "dict-value key-value pairs MUST be sorted by key."
+				if !bytesAreSortedBytewise(previousKeyRawBytes, keyRawBytes) {
+					return nil, fmt.Errorf("encoded dict-value keys are not sorted")
+				}
+
+				previousKeyRawBytes = keyRawBytes
+
+				// decode key from raw bytes
+				keyDecoder := NewDecoder(d.gauge, keyRawBytes)
+				key, err := keyDecoder.decodeValue(typ.KeyType, types)
+				if err != nil {
+					return nil, err
+				}
+
+				// element i+1: value
+				element, err := d.decodeValue(typ.ElementType, types)
+				if err != nil {
+					return nil, err
+				}
+
+				pairs[i] = cadence.NewMeteredKeyValuePair(d.gauge, key, element)
+			}
+
 			// "Valid CCF Encoding Requirements" in CCF specs:
 			//
 			//   "Keys MUST be unique in dict-value. Decoders are not always required to check
@@ -1795,7 +1793,6 @@ func (d *Decoder) decodeParameterTypeValue(visited cadenceTypeByCCFTypeID) (cade
 // language=CDDL
 // function-value = [
 //
-//	cadence-type-id: cadence-type-id,
 //	parameters: [
 //	    * [
 //	        label: tstr,
@@ -1807,25 +1804,19 @@ func (d *Decoder) decodeParameterTypeValue(visited cadenceTypeByCCFTypeID) (cade
 //
 // ]
 func (d *Decoder) decodeFunctionTypeValue(visited cadenceTypeByCCFTypeID) (cadence.Type, error) {
-	// Decode array head of length 3
-	err := decodeCBORArrayWithKnownSize(d.dec, 3)
+	// Decode array head of length 2
+	err := decodeCBORArrayWithKnownSize(d.dec, 2)
 	if err != nil {
 		return nil, err
 	}
 
-	// element 0: cadence-type-id
-	typeID, err := d.dec.DecodeString()
-	if err != nil {
-		return nil, err
-	}
-
-	// element 1: parameters
+	// element 0: parameters
 	parameters, err := d.decodeParameterTypeValues(visited)
 	if err != nil {
 		return nil, err
 	}
 
-	// element 2: return-type
+	// element 1: return-type
 	returnType, err := d._decodeTypeValue(visited)
 	if err != nil {
 		return nil, err
@@ -1836,7 +1827,7 @@ func (d *Decoder) decodeFunctionTypeValue(visited cadenceTypeByCCFTypeID) (caden
 		"",
 		parameters,
 		returnType,
-	).WithID(typeID), nil
+	), nil
 }
 
 func decodeCBORArrayWithKnownSize(dec *cbor.StreamDecoder, n uint64) error {

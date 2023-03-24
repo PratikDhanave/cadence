@@ -173,6 +173,49 @@ func TestType_ID(t *testing.T) {
 			"S.test.Foo{S.test.FooI}",
 		},
 		{
+			(&RestrictedType{
+				Type: &StructType{
+					Location:            utils.TestLocation,
+					QualifiedIdentifier: "Foo",
+				},
+			}),
+			"S.test.Foo{}",
+		},
+		{
+			(&RestrictedType{
+				Type: &StructType{
+					Location:            utils.TestLocation,
+					QualifiedIdentifier: "Foo",
+				},
+				Restrictions: []Type{
+					&StructInterfaceType{
+						Location:            utils.TestLocation,
+						QualifiedIdentifier: "FooI",
+					},
+				},
+			}),
+			"S.test.Foo{S.test.FooI}",
+		},
+		{
+			(&RestrictedType{
+				Type: &StructType{
+					Location:            utils.TestLocation,
+					QualifiedIdentifier: "Foo",
+				},
+				Restrictions: []Type{
+					&StructInterfaceType{
+						Location:            utils.TestLocation,
+						QualifiedIdentifier: "FooI",
+					},
+					&StructInterfaceType{
+						Location:            utils.TestLocation,
+						QualifiedIdentifier: "FooII",
+					},
+				},
+			}),
+			"S.test.Foo{S.test.FooI, S.test.FooII}",
+		},
+		{
 			&EventType{
 				QualifiedIdentifier: "Event",
 			},
@@ -223,6 +266,53 @@ func TestType_ID(t *testing.T) {
 				QualifiedIdentifier: "ContractI",
 			},
 			"S.test.ContractI",
+		},
+		{
+			&FunctionType{
+				UInt8Type{},
+				"Foo",
+				[]Parameter{
+					{
+						Type: StringType{},
+					},
+				},
+			},
+			"Foo",
+		},
+		{
+			&FunctionType{
+				UInt8Type{},
+				"",
+				[]Parameter{},
+			},
+			"(():UInt8)",
+		},
+		{
+			&FunctionType{
+				UInt8Type{},
+				"",
+				[]Parameter{
+					{
+						Type: StringType{},
+					},
+				},
+			},
+			"((String):UInt8)",
+		},
+		{
+			&FunctionType{
+				UInt8Type{},
+				"",
+				[]Parameter{
+					{
+						Type: StringType{},
+					},
+					{
+						Type: AddressType{},
+					},
+				},
+			},
+			"((String, Address):UInt8)",
 		},
 	}
 
@@ -1637,28 +1727,6 @@ func TestTypeEquality(t *testing.T) {
 				RawType:             IntType{},
 			}
 			assert.True(t, source.Equal(target))
-		})
-
-		t.Run("different raw type", func(t *testing.T) {
-			t.Parallel()
-
-			source := &EnumType{
-				Location: common.AddressLocation{
-					Name:    "Foo",
-					Address: common.Address{0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef},
-				},
-				QualifiedIdentifier: "Bar",
-				RawType:             IntType{},
-			}
-			target := &EnumType{
-				Location: common.AddressLocation{
-					Name:    "Foo",
-					Address: common.Address{0x12, 0x34, 0x56, 0x78, 0x90, 0xab, 0xcd, 0xef},
-				},
-				QualifiedIdentifier: "Bar",
-				RawType:             StringType{},
-			}
-			assert.False(t, source.Equal(target))
 		})
 
 		t.Run("different location name", func(t *testing.T) {
