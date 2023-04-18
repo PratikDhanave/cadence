@@ -228,8 +228,11 @@ func exportValueWithInterpreter(
 		}
 		defer delete(seenReferences, v)
 		seenReferences[v] = struct{}{}
+
+		referenceValue := v.MustReferencedValue(inter, locationRange)
+
 		return exportValueWithInterpreter(
-			v.Value,
+			referenceValue,
 			inter,
 			locationRange,
 			seenReferences,
