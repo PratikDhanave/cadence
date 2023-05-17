@@ -2511,7 +2511,7 @@ func newAccountAccountCapabilitiesIssueFunction(
 			}
 
 			capabilityIDValue, borrowStaticType :=
-				issueAccountCapabilityController(
+				IssueAccountCapabilityController(
 					inter,
 					locationRange,
 					idGenerator,
@@ -2529,7 +2529,7 @@ func newAccountAccountCapabilitiesIssueFunction(
 	)
 }
 
-func issueAccountCapabilityController(
+func IssueAccountCapabilityController(
 	inter *interpreter.Interpreter,
 	locationRange interpreter.LocationRange,
 	idGenerator AccountIDGenerator,
