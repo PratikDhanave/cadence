@@ -8236,8 +8236,8 @@ func TestRuntimeDestructorReentrancyPrevention(t *testing.T) {
 	)
 	RequireError(t, err)
 
-	var destructionError interpreter.ReentrantResourceDestructionError
-	require.ErrorAs(t, err, &destructionError)
+	var destroyedResourceErr interpreter.DestroyedResourceError
+	require.ErrorAs(t, err, &destroyedResourceErr)
 }
 
 func TestInvalidatedResourceUse(t *testing.T) {
@@ -8461,18 +8461,10 @@ func TestInvalidatedResourceUse2(t *testing.T) {
 			return signers, nil
 		},
 		resolveLocation: singleIdentifierLocationResolver(t),
-		getAccountContractCode: func(address Address, name string) (code []byte, err error) {
-			location := common.AddressLocation{
-				Address: address,
-				Name:    name,
-			}
+		getAccountContractCode: func(location common.AddressLocation) (code []byte, err error) {
 			return accountCodes[location], nil
 		},
-		updateAccountContractCode: func(address Address, name string, code []byte) (err error) {
-			location := common.AddressLocation{
-				Address: address,
-				Name:    name,
-			}
+		updateAccountContractCode: func(location common.AddressLocation, code []byte) (err error) {
 			accountCodes[location] = code
 			return nil
 		},
@@ -8653,5 +8645,8 @@ func TestInvalidatedResourceUse2(t *testing.T) {
 		},
 	)
 
-	require.NoError(t, err)
+	RequireError(t, err)
+
+	var destroyedResourceErr interpreter.DestroyedResourceError
+	require.ErrorAs(t, err, &destroyedResourceErr)
 }
