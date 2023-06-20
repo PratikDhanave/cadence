@@ -4485,10 +4485,10 @@ func TestRuntimeInvokeStoredInterfaceFunction(t *testing.T) {
 		return []byte(fmt.Sprintf(
 			`
               transaction {
-                prepare(signer: auth(Storage) &Account) {
-                  let acct = Account(payer: signer)
-                  acct.contracts.add(name: "%s", code: "%s".decodeHex())
-                }
+                  prepare(signer: auth(Storage) &Account) {
+                      let acct = Account(payer: signer)
+                      acct.contracts.add(name: "%s", code: "%s".decodeHex())
+                  }
               }
             `,
 			name,
