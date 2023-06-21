@@ -1789,6 +1789,39 @@ func TestInterpretEntitlementMappingAccessors(t *testing.T) {
 			).Equal(value.(*interpreter.EphemeralReferenceValue).Authorization),
 		)
 	})
+
+	t.Run("empty mapping on unauthorized ref", func(t *testing.T) {
+
+		t.Parallel()
+
+		inter := parseCheckAndInterpret(t, `
+			entitlement mapping EmptyMapping {}
+
+			struct S {
+				access(EmptyMapping) fun foo(): auth(EmptyMapping) &AnyStruct {
+					let a: AnyStruct = "hello"
+					return &a as auth(EmptyMapping) &AnyStruct
+				}
+			}
+
+			fun test(): &AnyStruct {
+				let s = S()
+				let ref = &s as &S
+
+				// Must return an unauthorized ref
+				return ref.foo()
+			}
+		`)
+
+		value, err := inter.Invoke("test")
+		require.NoError(t, err)
+
+		require.Equal(
+			t,
+			interpreter.UnauthorizedAccess,
+			value.(*interpreter.EphemeralReferenceValue).Authorization,
+		)
+	})
 }
 
 func TestInterpretEntitledAttachments(t *testing.T) {
