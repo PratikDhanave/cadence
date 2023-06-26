@@ -8731,5 +8731,12 @@ func TestRuntimeOptionalReferenceAttack(t *testing.T) {
 		},
 	)
 
-	require.NoError(t, err)
+	RequireError(t, err)
+
+	var checkerErr *sema.CheckerError
+	require.ErrorAs(t, err, &checkerErr)
+
+	errs := checker.RequireCheckerErrors(t, checkerErr, 1)
+
+	assert.IsType(t, &sema.TypeMismatchError{}, errs[0])
 }
