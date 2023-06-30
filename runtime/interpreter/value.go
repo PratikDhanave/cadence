@@ -133,7 +133,7 @@ type Value interface {
 		address atree.Address,
 		remove bool,
 		storable atree.Storable,
-		inTransfer map[atree.StorageID]struct{},
+		preventTransfer map[atree.StorageID]struct{},
 	) Value
 	DeepRemove(interpreter *Interpreter)
 	// Clone returns a new value that is equal to this value.
@@ -1959,7 +1959,9 @@ func (v *ArrayValue) Set(interpreter *Interpreter, locationRange LocationRange, 
 		v.array.Address(),
 		true,
 		nil,
-		nil,
+		map[atree.StorageID]struct{}{
+			v.StorageID(): {},
+		},
 	)
 
 	existingStorable, err := v.array.Set(uint64(index), element)
@@ -2029,7 +2031,9 @@ func (v *ArrayValue) Append(interpreter *Interpreter, locationRange LocationRang
 		v.array.Address(),
 		true,
 		nil,
-		nil,
+		map[atree.StorageID]struct{}{
+			v.StorageID(): {},
+		},
 	)
 
 	err := v.array.Append(element)
@@ -2087,7 +2091,9 @@ func (v *ArrayValue) Insert(interpreter *Interpreter, locationRange LocationRang
 		v.array.Address(),
 		true,
 		nil,
-		nil,
+		map[atree.StorageID]struct{}{
+			v.StorageID(): {},
+		},
 	)
 
 	err := v.array.Insert(uint64(index), element)
@@ -2538,7 +2544,7 @@ func (v *ArrayValue) Transfer(
 	address atree.Address,
 	remove bool,
 	storable atree.Storable,
-	inTransfer map[atree.StorageID]struct{},
+	preventTransfer map[atree.StorageID]struct{},
 ) Value {
 	baseUsage, elementUsage, dataSlabs, metaDataSlabs := common.NewArrayMemoryUsages(v.array.Count(), v.elementSize)
 	common.UseMemory(interpreter, baseUsage)
@@ -2572,15 +2578,15 @@ func (v *ArrayValue) Transfer(
 	currentStorageID := v.StorageID()
 	currentAddress := currentStorageID.Address
 
-	if inTransfer == nil {
-		inTransfer = map[atree.StorageID]struct{}{}
-	} else if _, ok := inTransfer[currentStorageID]; ok {
-		panic(ValueInTransferError{
+	if preventTransfer == nil {
+		preventTransfer = map[atree.StorageID]struct{}{}
+	} else if _, ok := preventTransfer[currentStorageID]; ok {
+		panic(RecursiveTransferError{
 			LocationRange: locationRange,
 		})
 	}
-	inTransfer[currentStorageID] = struct{}{}
-	defer delete(inTransfer, currentStorageID)
+	preventTransfer[currentStorageID] = struct{}{}
+	defer delete(preventTransfer, currentStorageID)
 
 	array := v.array
 
@@ -2608,7 +2614,7 @@ func (v *ArrayValue) Transfer(
 				}
 
 				element := MustConvertStoredValue(interpreter, value).
-					Transfer(interpreter, locationRange, address, remove, nil, inTransfer)
+					Transfer(interpreter, locationRange, address, remove, nil, preventTransfer)
 
 				return element, nil
 			},
@@ -15717,7 +15723,9 @@ func (v *CompositeValue) SetMember(
 		address,
 		true,
 		nil,
-		nil,
+		map[atree.StorageID]struct{}{
+			v.StorageID(): {},
+		},
 	)
 
 	existingStorable, err := v.dictionary.Set(
@@ -16064,7 +16072,7 @@ func (v *CompositeValue) Transfer(
 	address atree.Address,
 	remove bool,
 	storable atree.Storable,
-	inTransfer map[atree.StorageID]struct{},
+	preventTransfer map[atree.StorageID]struct{},
 ) Value {
 
 	baseUse, elementOverhead, dataUse, metaDataUse := common.NewCompositeMemoryUsages(v.dictionary.Count(), 0)
@@ -16101,15 +16109,15 @@ func (v *CompositeValue) Transfer(
 	currentStorageID := v.StorageID()
 	currentAddress := currentStorageID.Address
 
-	if inTransfer == nil {
-		inTransfer = map[atree.StorageID]struct{}{}
-	} else if _, ok := inTransfer[currentStorageID]; ok {
-		panic(ValueInTransferError{
+	if preventTransfer == nil {
+		preventTransfer = map[atree.StorageID]struct{}{}
+	} else if _, ok := preventTransfer[currentStorageID]; ok {
+		panic(RecursiveTransferError{
 			LocationRange: locationRange,
 		})
 	}
-	inTransfer[currentStorageID] = struct{}{}
-	defer delete(inTransfer, currentStorageID)
+	preventTransfer[currentStorageID] = struct{}{}
+	defer delete(preventTransfer, currentStorageID)
 
 	dictionary := v.dictionary
 
@@ -16167,7 +16175,7 @@ func (v *CompositeValue) Transfer(
 					address,
 					remove,
 					nil,
-					inTransfer,
+					preventTransfer,
 				)
 
 				return atreeKey, value, nil
@@ -17369,13 +17377,17 @@ func (v *DictionaryValue) Insert(
 
 	address := v.dictionary.Address()
 
+	preventTransfer := map[atree.StorageID]struct{}{
+		v.StorageID(): {},
+	}
+
 	keyValue = keyValue.Transfer(
 		interpreter,
 		locationRange,
 		address,
 		true,
 		nil,
-		nil,
+		preventTransfer,
 	)
 
 	value = value.Transfer(
@@ -17384,7 +17396,7 @@ func (v *DictionaryValue) Insert(
 		address,
 		true,
 		nil,
-		nil,
+		preventTransfer,
 	)
 
 	valueComparator := newValueComparator(interpreter, locationRange)
@@ -17575,7 +17587,7 @@ func (v *DictionaryValue) Transfer(
 	address atree.Address,
 	remove bool,
 	storable atree.Storable,
-	inTransfer map[atree.StorageID]struct{},
+	preventTransfer map[atree.StorageID]struct{},
 ) Value {
 	baseUse, elementOverhead, dataUse, metaDataUse := common.NewDictionaryMemoryUsages(
 		v.dictionary.Count(),
@@ -17612,15 +17624,15 @@ func (v *DictionaryValue) Transfer(
 	currentStorageID := v.StorageID()
 	currentAddress := currentStorageID.Address
 
-	if inTransfer == nil {
-		inTransfer = map[atree.StorageID]struct{}{}
-	} else if _, ok := inTransfer[currentStorageID]; ok {
-		panic(ValueInTransferError{
+	if preventTransfer == nil {
+		preventTransfer = map[atree.StorageID]struct{}{}
+	} else if _, ok := preventTransfer[currentStorageID]; ok {
+		panic(RecursiveTransferError{
 			LocationRange: locationRange,
 		})
 	}
-	inTransfer[currentStorageID] = struct{}{}
-	defer delete(inTransfer, currentStorageID)
+	preventTransfer[currentStorageID] = struct{}{}
+	defer delete(preventTransfer, currentStorageID)
 
 	dictionary := v.dictionary
 
@@ -17659,10 +17671,10 @@ func (v *DictionaryValue) Transfer(
 				}
 
 				key := MustConvertStoredValue(interpreter, atreeKey).
-					Transfer(interpreter, locationRange, address, remove, nil, inTransfer)
+					Transfer(interpreter, locationRange, address, remove, nil, preventTransfer)
 
 				value := MustConvertStoredValue(interpreter, atreeValue).
-					Transfer(interpreter, locationRange, address, remove, nil, inTransfer)
+					Transfer(interpreter, locationRange, address, remove, nil, preventTransfer)
 
 				return key, value, nil
 			},
@@ -18272,7 +18284,7 @@ func (v *SomeValue) Transfer(
 	address atree.Address,
 	remove bool,
 	storable atree.Storable,
-	inTransfer map[atree.StorageID]struct{},
+	preventTransfer map[atree.StorageID]struct{},
 ) Value {
 	config := interpreter.SharedState.Config
 
@@ -18287,7 +18299,14 @@ func (v *SomeValue) Transfer(
 
 	if needsStoreTo || !isResourceKinded {
 
-		innerValue = v.value.Transfer(interpreter, locationRange, address, remove, nil, inTransfer)
+		innerValue = v.value.Transfer(
+			interpreter,
+			locationRange,
+			address,
+			remove,
+			nil,
+			preventTransfer,
+		)
 
 		if remove {
 			interpreter.RemoveReferencedSlab(v.valueStorable)
@@ -20267,7 +20286,7 @@ func (v *PublishedValue) Transfer(
 	address atree.Address,
 	remove bool,
 	storable atree.Storable,
-	inTransfer map[atree.StorageID]struct{},
+	preventTransfer map[atree.StorageID]struct{},
 ) Value {
 	// NB: if the inner value of a PublishedValue can be a resource,
 	// we must perform resource-related checks here as well
@@ -20280,7 +20299,7 @@ func (v *PublishedValue) Transfer(
 			address,
 			remove,
 			nil,
-			inTransfer,
+			preventTransfer,
 		).(CapabilityValue)
 
 		addressValue := v.Recipient.Transfer(
@@ -20289,7 +20308,7 @@ func (v *PublishedValue) Transfer(
 			address,
 			remove,
 			nil,
-			inTransfer,
+			preventTransfer,
 		).(AddressValue)
 
 		if remove {
