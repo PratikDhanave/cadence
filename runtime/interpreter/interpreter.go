@@ -1687,6 +1687,7 @@ func (interpreter *Interpreter) transferAndConvert(
 		atree.Address{},
 		false,
 		nil,
+		nil,
 	)
 
 	result := interpreter.ConvertAndBox(
@@ -3849,6 +3850,7 @@ func (interpreter *Interpreter) authAccountSaveFunction(addressValue AddressValu
 				atree.Address(address),
 				true,
 				nil,
+				nil,
 			)
 
 			// Write new value
@@ -3971,6 +3973,7 @@ func (interpreter *Interpreter) authAccountReadFunction(addressValue AddressValu
 				locationRange,
 				atree.Address{},
 				false,
+				nil,
 				nil,
 			)
 

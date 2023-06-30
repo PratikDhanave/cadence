@@ -1030,6 +1030,7 @@ func newAuthAccountInboxPublishFunction(
 				atree.Address(provider),
 				true,
 				nil,
+				nil,
 			)
 
 			storageMapKey := interpreter.StringStorageMapKey(nameValue.Str)
@@ -1095,6 +1096,7 @@ func newAuthAccountInboxUnpublishFunction(
 				locationRange,
 				atree.Address{},
 				true,
+				nil,
 				nil,
 			)
 
@@ -1180,6 +1182,7 @@ func newAuthAccountInboxClaimFunction(
 				locationRange,
 				atree.Address{},
 				true,
+				nil,
 				nil,
 			)
 
@@ -3187,6 +3190,7 @@ func newAuthAccountCapabilitiesPublishFunction(
 				atree.Address(address),
 				true,
 				nil,
+				nil,
 			).(*interpreter.IDCapabilityValue)
 			if !ok {
 				panic(errors.NewUnreachableError())
@@ -3255,6 +3259,7 @@ func newAuthAccountCapabilitiesUnpublishFunction(
 				locationRange,
 				atree.Address{},
 				true,
+				nil,
 				nil,
 			).(*interpreter.IDCapabilityValue)
 			if !ok {
@@ -3401,6 +3406,7 @@ func newAuthAccountCapabilitiesMigrateLinkFunction(
 				locationRange,
 				atree.Address(address),
 				true,
+				nil,
 				nil,
 			).(*interpreter.IDCapabilityValue)
 			if !ok {
