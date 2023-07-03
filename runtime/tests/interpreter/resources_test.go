@@ -2910,3 +2910,50 @@ func TestInterpretInnerResourceDestruction(t *testing.T) {
 	var destroyedResourceErr interpreter.DestroyedResourceError
 	require.ErrorAs(t, err, &destroyedResourceErr)
 }
+
+func TestInterpretInnerResourceReferenceInvalidation(t *testing.T) {
+
+	t.Parallel()
+
+	inter := parseCheckAndInterpret(t, `
+        pub resource Foo {
+            pub fun something() {}
+        }
+
+        pub fun main() {
+            var dict: @{Int:Foo} <- {1 : <- create Foo()}
+
+            var r = (&dict[1] as auth &AnyResource) as! &Foo
+
+            destroy <- dict.remove(key:1)!
+
+            r.something()
+            destroy dict
+        }`,
+	)
+
+	_, err := inter.Invoke("main")
+	assert.NoError(t, err)
+}
+
+func TestInterpretAnyResourceReferenceToOptional(t *testing.T) {
+
+	t.Parallel()
+
+	inter := parseCheckAndInterpret(t, `
+
+      resource Foo {}
+
+      fun main(): AnyStruct {
+        let y: @Foo? <- create Foo()
+        let z: @AnyResource <- y
+        var ref = &z as auth &AnyResource
+
+        destroy z
+        return ref
+      }
+    `)
+
+	_, err := inter.Invoke("main")
+	require.NoError(t, err)
+}
