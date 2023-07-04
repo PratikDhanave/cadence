@@ -179,6 +179,9 @@ type PublicAccountHandlerFunc func(
 // UUIDHandlerFunc is a function that handles the generation of UUIDs.
 type UUIDHandlerFunc func() (uint64, error)
 
+// CompositeTypeHandlerFunc is a function that loads composite types.
+type CompositeTypeHandlerFunc func(location common.Location, typeID common.TypeID) *sema.CompositeType
+
 // CompositeTypeCode contains the "prepared" / "callable" "code"
 // for the functions and the destructor of a composite
 // (contract, struct, resource, event).
@@ -256,13 +259,13 @@ var _ ast.ExpressionVisitor[Value] = &Interpreter{}
 
 // BaseActivation is the activation which contains all base declarations.
 // It is reused across all interpreters.
-var BaseActivation = func() *VariableActivation {
-	// No need to meter since this is only created once
-	activation := activations.NewActivation[*Variable](nil, nil)
+var BaseActivation *VariableActivation
 
-	defineBaseFunctions(activation)
-	return activation
-}()
+func init() {
+	// No need to meter since this is only created once
+	BaseActivation = activations.NewActivation[*Variable](nil, nil)
+	defineBaseFunctions(BaseActivation)
+}
 
 func NewInterpreter(
 	program *Program,
@@ -420,12 +423,15 @@ func (interpreter *Interpreter) InvokeExternally(
 
 	if argumentCount != parameterCount {
 
-		// if the function has defined optional parameters,
-		// then the provided arguments must be equal to or greater than
-		// the number of required parameters.
-		if functionType.RequiredArgumentCount == nil ||
-			argumentCount < *functionType.RequiredArgumentCount {
+		if argumentCount < functionType.Arity.MinCount(parameterCount) {
+			return nil, ArgumentCountError{
+				ParameterCount: parameterCount,
+				ArgumentCount:  argumentCount,
+			}
+		}
 
+		maxCount := functionType.Arity.MaxCount(parameterCount)
+		if maxCount != nil && argumentCount > *maxCount {
 			return nil, ArgumentCountError{
 				ParameterCount: parameterCount,
 				ArgumentCount:  argumentCount,
@@ -1062,7 +1068,6 @@ func (interpreter *Interpreter) declareNonEnumCompositeValue(
 		ReturnTypeAnnotation: sema.TypeAnnotation{
 			Type: compositeType,
 		},
-		RequiredArgumentCount: nil,
 	}
 
 	var initializerFunction FunctionValue
@@ -1609,7 +1614,7 @@ func (interpreter *Interpreter) functionWrappers(
 		name := functionDeclaration.Identifier.Identifier
 		functionWrapper := interpreter.functionConditionsWrapper(
 			functionDeclaration,
-			functionType.ReturnTypeAnnotation.Type,
+			functionType,
 			lexicalScope,
 		)
 		if functionWrapper == nil {
@@ -1973,7 +1978,11 @@ func (interpreter *Interpreter) declareInterface(
 	interfaceType := interpreter.Program.Elaboration.InterfaceDeclarationType(declaration)
 	typeID := interfaceType.ID()
 
-	initializerFunctionWrapper := interpreter.initializerFunctionWrapper(declaration.Members, lexicalScope)
+	initializerFunctionWrapper := interpreter.initializerFunctionWrapper(
+		declaration.Members,
+		interfaceType.InitializerParameters,
+		lexicalScope,
+	)
 	destructorFunctionWrapper := interpreter.destructorFunctionWrapper(declaration.Members, lexicalScope)
 	functionWrappers := interpreter.functionWrappers(declaration.Members, lexicalScope)
 	defaultFunctions := interpreter.defaultFunctions(declaration.Members, lexicalScope)
@@ -2009,7 +2018,11 @@ func (interpreter *Interpreter) declareTypeRequirement(
 	compositeType := interpreter.Program.Elaboration.CompositeDeclarationType(declaration)
 	typeID := compositeType.ID()
 
-	initializerFunctionWrapper := interpreter.initializerFunctionWrapper(declaration.Members, lexicalScope)
+	initializerFunctionWrapper := interpreter.initializerFunctionWrapper(
+		declaration.Members,
+		compositeType.ConstructorParameters,
+		lexicalScope,
+	)
 	destructorFunctionWrapper := interpreter.destructorFunctionWrapper(declaration.Members, lexicalScope)
 	functionWrappers := interpreter.functionWrappers(declaration.Members, lexicalScope)
 	defaultFunctions := interpreter.defaultFunctions(declaration.Members, lexicalScope)
@@ -2024,6 +2037,7 @@ func (interpreter *Interpreter) declareTypeRequirement(
 
 func (interpreter *Interpreter) initializerFunctionWrapper(
 	members *ast.Members,
+	parameters []sema.Parameter,
 	lexicalScope *VariableActivation,
 ) FunctionWrapper {
 
@@ -2041,9 +2055,16 @@ func (interpreter *Interpreter) initializerFunctionWrapper(
 
 	return interpreter.functionConditionsWrapper(
 		firstInitializer.FunctionDeclaration,
-		sema.VoidType,
+		&sema.FunctionType{
+			Parameters:           parameters,
+			ReturnTypeAnnotation: sema.VoidTypeAnnotation,
+		},
 		lexicalScope,
 	)
+}
+
+var voidFunctionType = &sema.FunctionType{
+	ReturnTypeAnnotation: sema.VoidTypeAnnotation,
 }
 
 func (interpreter *Interpreter) destructorFunctionWrapper(
@@ -2058,14 +2079,14 @@ func (interpreter *Interpreter) destructorFunctionWrapper(
 
 	return interpreter.functionConditionsWrapper(
 		destructor.FunctionDeclaration,
-		sema.VoidType,
+		voidFunctionType,
 		lexicalScope,
 	)
 }
 
 func (interpreter *Interpreter) functionConditionsWrapper(
 	declaration *ast.FunctionDeclaration,
-	returnType sema.Type,
+	functionType *sema.FunctionType,
 	lexicalScope *VariableActivation,
 ) FunctionWrapper {
 
@@ -2091,15 +2112,10 @@ func (interpreter *Interpreter) functionConditionsWrapper(
 	}
 
 	return func(inner FunctionValue) FunctionValue {
-		// Construct a raw HostFunctionValue without a type,
-		// instead of using NewHostFunctionValue, which requires a type.
-		//
-		// This host function value is an internally created and used function,
-		// and can never be passed around as a value.
-		// Hence, the type is not required.
-
-		return &HostFunctionValue{
-			Function: func(invocation Invocation) Value {
+		return NewHostFunctionValue(
+			interpreter,
+			functionType,
+			func(invocation Invocation) Value {
 				// Start a new activation record.
 				// Lexical scope: use the function declaration's activation record,
 				// not the current one (which would be dynamic scope)
@@ -2193,10 +2209,10 @@ func (interpreter *Interpreter) functionConditionsWrapper(
 					preConditions,
 					body,
 					rewrittenPostConditions,
-					returnType,
+					functionType.ReturnTypeAnnotation.Type,
 				)
 			},
-		}
+		)
 	}
 }
 
@@ -4704,40 +4720,40 @@ func (interpreter *Interpreter) GetCompositeType(
 	qualifiedIdentifier string,
 	typeID common.TypeID,
 ) (*sema.CompositeType, error) {
+	var compositeType *sema.CompositeType
 	if location == nil {
-		return interpreter.getNativeCompositeType(qualifiedIdentifier)
+		compositeType = sema.NativeCompositeTypes[qualifiedIdentifier]
+		if compositeType != nil {
+			return compositeType, nil
+		}
+	} else {
+		compositeType = interpreter.getUserCompositeType(location, typeID)
+		if compositeType != nil {
+			return compositeType, nil
+		}
 	}
 
-	return interpreter.getUserCompositeType(location, typeID)
+	config := interpreter.SharedState.Config
+	compositeTypeHandler := config.CompositeTypeHandler
+	if compositeTypeHandler != nil {
+		compositeType = compositeTypeHandler(location, typeID)
+		if compositeType != nil {
+			return compositeType, nil
+		}
+	}
+
+	return nil, TypeLoadingError{
+		TypeID: typeID,
+	}
 }
 
-func (interpreter *Interpreter) getUserCompositeType(location common.Location, typeID common.TypeID) (*sema.CompositeType, error) {
+func (interpreter *Interpreter) getUserCompositeType(location common.Location, typeID common.TypeID) *sema.CompositeType {
 	elaboration := interpreter.getElaboration(location)
 	if elaboration == nil {
-		return nil, TypeLoadingError{
-			TypeID: typeID,
-		}
+		return nil
 	}
 
-	ty := elaboration.CompositeType(typeID)
-	if ty == nil {
-		return nil, TypeLoadingError{
-			TypeID: typeID,
-		}
-	}
-
-	return ty, nil
-}
-
-func (interpreter *Interpreter) getNativeCompositeType(qualifiedIdentifier string) (*sema.CompositeType, error) {
-	ty := sema.NativeCompositeTypes[qualifiedIdentifier]
-	if ty == nil {
-		return nil, TypeLoadingError{
-			TypeID: common.TypeID(qualifiedIdentifier),
-		}
-	}
-
-	return ty, nil
+	return elaboration.CompositeType(typeID)
 }
 
 func (interpreter *Interpreter) getInterfaceType(location common.Location, qualifiedIdentifier string) (*sema.InterfaceType, error) {
@@ -5364,4 +5380,44 @@ func (interpreter *Interpreter) idCapabilityCheckFunction(
 			)
 		},
 	)
+}
+
+func (interpreter *Interpreter) validateMutation(storageID atree.StorageID, locationRange LocationRange) {
+	_, present := interpreter.SharedState.containerValueIteration[storageID]
+	if !present {
+		return
+	}
+	panic(ContainerMutatedDuringIterationError{
+		LocationRange: locationRange,
+	})
+}
+
+func (interpreter *Interpreter) withMutationPrevention(storageID atree.StorageID, f func()) {
+	oldIteration, present := interpreter.SharedState.containerValueIteration[storageID]
+	interpreter.SharedState.containerValueIteration[storageID] = struct{}{}
+
+	f()
+
+	if !present {
+		delete(interpreter.SharedState.containerValueIteration, storageID)
+	} else {
+		interpreter.SharedState.containerValueIteration[storageID] = oldIteration
+	}
+}
+
+func (interpreter *Interpreter) withResourceDestruction(
+	storageID atree.StorageID,
+	locationRange LocationRange,
+	f func(),
+) {
+	_, exists := interpreter.SharedState.destroyedResources[storageID]
+	if exists {
+		panic(DestroyedResourceError{
+			LocationRange: locationRange,
+		})
+	}
+
+	interpreter.SharedState.destroyedResources[storageID] = struct{}{}
+
+	f()
 }

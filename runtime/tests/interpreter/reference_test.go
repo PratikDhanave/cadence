@@ -883,21 +883,96 @@ func TestInterpretReferenceExpressionOfOptional(t *testing.T) {
 		value := inter.Globals.Get("ref").GetValue()
 		require.IsType(t, interpreter.Nil, value)
 	})
+}
 
-	t.Run("upcast to optional", func(t *testing.T) {
+func TestInterpretReferenceTrackingOnInvocation(t *testing.T) {
+
+	t.Parallel()
+
+	t.Run("simple resource", func(t *testing.T) {
 
 		t.Parallel()
 
 		inter := parseCheckAndInterpret(t, `
-          let i: Int = 1
-          let ref = &i as &Int?
+            pub resource Foo {
+
+                pub let id: UInt8
+
+                init() {
+                    self.id = 12
+                }
+
+                pub fun something() {}
+            }
+
+            fun main() {
+                var foo <- create Foo()
+                var fooRef = &foo as &Foo
+
+                // Invocation should not un-track the reference
+                fooRef.something()
+
+                // Moving the resource should update the tracking
+                var newFoo <- foo
+
+            	fooRef.id
+
+            	destroy newFoo
+            }
         `)
 
-		value := inter.Globals.Get("ref").GetValue()
-		require.IsType(t, &interpreter.SomeValue{}, value)
-
-		innerValue := value.(*interpreter.SomeValue).
-			InnerValue(inter, interpreter.EmptyLocationRange)
-		require.IsType(t, &interpreter.EphemeralReferenceValue{}, innerValue)
+		_, err := inter.Invoke("main")
+		require.NoError(t, err)
 	})
+}
+
+func TestInterpretInvalidReferenceToOptionalConfusion(t *testing.T) {
+
+	t.Parallel()
+
+	inter := parseCheckAndInterpret(t, `
+      struct S {
+         fun foo() {}
+      }
+
+      fun main() {
+        let y: AnyStruct? = nil
+        let z: AnyStruct = y
+        let ref = &z as auth &AnyStruct
+        let s = ref as! &S
+        s.foo()
+      }
+    `)
+
+	_, err := inter.Invoke("main")
+	RequireError(t, err)
+
+	require.ErrorAs(t, err, &interpreter.ForceCastTypeMismatchError{})
+}
+
+func TestInterpretReferenceToOptional(t *testing.T) {
+
+	t.Parallel()
+
+	inter := parseCheckAndInterpret(t, `
+      fun main(): AnyStruct {
+        let y: Int? = nil
+        let z: AnyStruct = y
+        return &z as auth &AnyStruct
+      }
+    `)
+
+	value, err := inter.Invoke("main")
+	require.NoError(t, err)
+
+	AssertValuesEqual(
+		t,
+		inter,
+		&interpreter.EphemeralReferenceValue{
+			Value:        interpreter.Nil,
+			BorrowedType: sema.AnyStructType,
+			Authorized:   true,
+		},
+		value,
+	)
 }
