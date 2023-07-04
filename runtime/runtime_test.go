@@ -8084,7 +8084,7 @@ func TestUserPanicToError(t *testing.T) {
 	require.Equal(t, retErr, err)
 }
 
-func TestRuntimeCrasher(t *testing.T) {
+func TestRuntimeInvalidRecursiveTransfer(t *testing.T) {
 
 	t.Parallel()
 
