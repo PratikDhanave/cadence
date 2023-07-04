@@ -75,7 +75,8 @@ var testTypeAssertFunctionType = &sema.FunctionType{
 	ReturnTypeAnnotation: sema.NewTypeAnnotation(
 		sema.VoidType,
 	),
-	RequiredArgumentCount: sema.RequiredArgumentCount(1),
+	// `message` parameter is optional
+	Arity: &sema.Arity{Min: 1, Max: 2},
 }
 
 var testTypeAssertFunction = interpreter.NewUnmeteredHostFunctionValue(
@@ -106,6 +107,74 @@ var testTypeAssertFunction = interpreter.NewUnmeteredHostFunctionValue(
 	},
 )
 
+// 'Test.assertEqual' function
+
+const testTypeAssertEqualFunctionDocString = `
+Fails the test-case if the given values are not equal, and
+reports a message which explains how the two values differ.
+`
+
+const testTypeAssertEqualFunctionName = "assertEqual"
+
+var testTypeAssertEqualFunctionType = &sema.FunctionType{
+	Parameters: []sema.Parameter{
+		{
+			Label:      sema.ArgumentLabelNotRequired,
+			Identifier: "expected",
+			TypeAnnotation: sema.NewTypeAnnotation(
+				sema.AnyStructType,
+			),
+		},
+		{
+			Label:      sema.ArgumentLabelNotRequired,
+			Identifier: "actual",
+			TypeAnnotation: sema.NewTypeAnnotation(
+				sema.AnyStructType,
+			),
+		},
+	},
+	ReturnTypeAnnotation: sema.NewTypeAnnotation(
+		sema.VoidType,
+	),
+}
+
+var testTypeAssertEqualFunction = interpreter.NewUnmeteredHostFunctionValue(
+	testTypeAssertEqualFunctionType,
+	func(invocation interpreter.Invocation) interpreter.Value {
+		expected, ok := invocation.Arguments[0].(interpreter.EquatableValue)
+		if !ok {
+			panic(errors.NewUnreachableError())
+		}
+
+		inter := invocation.Interpreter
+
+		actual, ok := invocation.Arguments[1].(interpreter.EquatableValue)
+		if !ok {
+			panic(errors.NewUnreachableError())
+		}
+
+		equal := expected.Equal(
+			inter,
+			invocation.LocationRange,
+			actual,
+		)
+
+		if !equal {
+			message := fmt.Sprintf(
+				"not equal: expected: %s, actual: %s",
+				expected,
+				actual,
+			)
+			panic(AssertionError{
+				Message:       message,
+				LocationRange: invocation.LocationRange,
+			})
+		}
+
+		return interpreter.Void
+	},
+)
+
 // 'Test.fail' function
 
 const testTypeFailFunctionDocString = `
@@ -126,7 +195,8 @@ var testTypeFailFunctionType = &sema.FunctionType{
 	ReturnTypeAnnotation: sema.NewTypeAnnotation(
 		sema.VoidType,
 	),
-	RequiredArgumentCount: sema.RequiredArgumentCount(0),
+	// `message` parameter is optional
+	Arity: &sema.Arity{Min: 0, Max: 1},
 }
 
 var testTypeFailFunction = interpreter.NewUnmeteredHostFunctionValue(
@@ -834,7 +904,6 @@ func newTestTypeExpectFailureFunctionType() *sema.FunctionType {
 		ReturnTypeAnnotation: sema.NewTypeAnnotation(
 			sema.VoidType,
 		),
-		RequiredArgumentCount: sema.RequiredArgumentCount(2),
 	}
 }
 
@@ -1004,6 +1073,17 @@ func newTestContractType() *TestContractType {
 			testTypeAssertFunctionName,
 			testTypeAssertFunctionType,
 			testTypeAssertFunctionDocString,
+		),
+	)
+
+	// Test.assertEqual()
+	compositeType.Members.Set(
+		testTypeAssertEqualFunctionName,
+		sema.NewUnmeteredPublicFunctionMember(
+			compositeType,
+			testTypeAssertEqualFunctionName,
+			testTypeAssertEqualFunctionType,
+			testTypeAssertEqualFunctionDocString,
 		),
 	)
 
@@ -1263,6 +1343,7 @@ func (t *TestContractType) NewTestContract(
 
 	// Inject natively implemented function values
 	compositeValue.Functions[testTypeAssertFunctionName] = testTypeAssertFunction
+	compositeValue.Functions[testTypeAssertEqualFunctionName] = testTypeAssertEqualFunction
 	compositeValue.Functions[testTypeFailFunctionName] = testTypeFailFunction
 	compositeValue.Functions[testTypeExpectFunctionName] = t.expectFunction
 	compositeValue.Functions[testTypeNewEmulatorBlockchainFunctionName] =

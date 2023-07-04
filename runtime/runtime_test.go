@@ -8092,48 +8092,6 @@ func TestRuntimeUserPanicToError(t *testing.T) {
 	require.Equal(t, retErr, err)
 }
 
-func TestRuntimeFlowEventTypes(t *testing.T) {
-
-	t.Parallel()
-
-	rt := newTestInterpreterRuntime()
-
-	script := []byte(`
-      pub fun main(): Type? {
-          return CompositeType("flow.AccountContractAdded")
-      }
-    `)
-
-	runtimeInterface := &testRuntimeInterface{
-		storage: newTestLedger(nil, nil),
-	}
-
-	result, err := rt.ExecuteScript(
-		Script{
-			Source: script,
-		},
-		Context{
-			Interface: runtimeInterface,
-			Location:  common.ScriptLocation{},
-		},
-	)
-	require.NoError(t, err)
-
-	accountContractAddedType := ExportType(
-		stdlib.AccountContractAddedEventType,
-		map[sema.TypeID]cadence.Type{},
-	)
-
-	require.Equal(t,
-		cadence.Optional{
-			Value: cadence.TypeValue{
-				StaticType: accountContractAddedType,
-			},
-		},
-		result,
-	)
-}
-
 func TestRuntimeDestructorReentrancyPrevention(t *testing.T) {
 
 	t.Parallel()
@@ -8238,6 +8196,48 @@ func TestRuntimeDestructorReentrancyPrevention(t *testing.T) {
 
 	var destroyedResourceErr interpreter.DestroyedResourceError
 	require.ErrorAs(t, err, &destroyedResourceErr)
+}
+
+func TestRuntimeFlowEventTypes(t *testing.T) {
+
+	t.Parallel()
+
+	rt := newTestInterpreterRuntime()
+
+	script := []byte(`
+      pub fun main(): Type? {
+          return CompositeType("flow.AccountContractAdded")
+      }
+    `)
+
+	runtimeInterface := &testRuntimeInterface{
+		storage: newTestLedger(nil, nil),
+	}
+
+	result, err := rt.ExecuteScript(
+		Script{
+			Source: script,
+		},
+		Context{
+			Interface: runtimeInterface,
+			Location:  common.ScriptLocation{},
+		},
+	)
+	require.NoError(t, err)
+
+	accountContractAddedType := ExportType(
+		stdlib.AccountContractAddedEventType,
+		map[sema.TypeID]cadence.Type{},
+	)
+
+	require.Equal(t,
+		cadence.Optional{
+			Value: cadence.TypeValue{
+				StaticType: accountContractAddedType,
+			},
+		},
+		result,
+	)
 }
 
 func TestInvalidatedResourceUse(t *testing.T) {
