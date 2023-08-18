@@ -149,31 +149,28 @@ func AssertValuesEqual(t testing.TB, interpreter *interpreter.Interpreter, expec
 	if !ValuesAreEqual(interpreter, expected, actual) {
 		diff := deep.Equal(expected, actual)
 
+		s := strings.Builder{}
 		var message string
+		_, _ = fmt.Fprintf(&s,
+			"Not equal: \n"+
+				"expected: %s\n"+
+				"actual  : %s\n\n",
+			expected,
+			actual,
+		)
 
-		if len(diff) != 0 {
-			s := strings.Builder{}
-			_, _ = fmt.Fprintf(&s,
-				"Not equal: \n"+
-					"expected: %s\n"+
-					"actual  : %s\n\n",
-				expected,
-				actual,
-			)
-
-			for i, d := range diff {
-				if i == 0 {
-					s.WriteString("diff    : ")
-				} else {
-					s.WriteString("          ")
-				}
-
-				s.WriteString(d)
-				s.WriteString("\n")
+		for i, d := range diff {
+			if i == 0 {
+				s.WriteString("diff    : ")
+			} else {
+				s.WriteString("          ")
 			}
 
-			message = s.String()
+			s.WriteString(d)
+			s.WriteString("\n")
 		}
+
+		message = s.String()
 
 		return assert.Fail(t, message)
 	}
