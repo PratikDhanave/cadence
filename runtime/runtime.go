@@ -224,7 +224,7 @@ func (r *interpreterRuntime) Config() Config {
 	return r.defaultConfig
 }
 
-func (r *interpreterRuntime) Recover(onError func(Error), location Location, codesAndPrograms codesAndPrograms) {
+func (r *interpreterRuntime) Recover(onError func(Error), location Location, codesAndPrograms CodesAndPrograms) {
 	recovered := recover()
 	if recovered == nil {
 		return
@@ -234,7 +234,7 @@ func (r *interpreterRuntime) Recover(onError func(Error), location Location, cod
 	onError(err)
 }
 
-func getWrappedError(recovered any, location Location, codesAndPrograms codesAndPrograms) Error {
+func getWrappedError(recovered any, location Location, codesAndPrograms CodesAndPrograms) Error {
 	switch recovered := recovered.(type) {
 
 	// If the error is already a `runtime.Error`, then avoid redundant wrapping.
@@ -512,7 +512,7 @@ func (r *interpreterRuntime) ParseAndCheckProgram(
 ) {
 	location := context.Location
 
-	codesAndPrograms := newCodesAndPrograms()
+	codesAndPrograms := NewCodesAndPrograms()
 
 	defer r.Recover(
 		func(internalErr Error) {
@@ -551,7 +551,7 @@ func (r *interpreterRuntime) Storage(context Context) (*Storage, *interpreter.In
 
 	location := context.Location
 
-	codesAndPrograms := newCodesAndPrograms()
+	codesAndPrograms := NewCodesAndPrograms()
 
 	storage := NewStorage(context.Interface, context.Interface)
 
@@ -588,7 +588,7 @@ func (r *interpreterRuntime) ReadStored(
 ) {
 	location := context.Location
 
-	var codesAndPrograms codesAndPrograms
+	var codesAndPrograms CodesAndPrograms
 
 	defer r.Recover(
 		func(internalErr Error) {
@@ -634,7 +634,7 @@ func (r *interpreterRuntime) ReadLinked(
 ) {
 	location := context.Location
 
-	var codesAndPrograms codesAndPrograms
+	var codesAndPrograms CodesAndPrograms
 
 	defer r.Recover(
 		func(internalErr Error) {
