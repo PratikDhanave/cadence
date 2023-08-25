@@ -1926,6 +1926,19 @@ Returns a new array with contents in the reversed order.
 Available if the array element type is not resource-kinded.
 `
 
+const ArrayTypeFilterFunctionName = "filter"
+
+const arrayTypeFilterFunctionDocString = `
+Returns a new array whose elements are filtered by applying the filter function on each element of the original array.
+Available if the array element type is not resource-kinded.
+`
+
+const ArrayTypeMapFunctionName = "map"
+
+const arrayTypeMapFunctionDocString = `
+Returns a new array whose elements are produced by applying the mapper function on each element of the original array.
+`
+
 func getArrayMembers(arrayType ArrayType) map[string]MemberResolver {
 
 	members := map[string]MemberResolver{
@@ -2041,6 +2054,56 @@ func getArrayMembers(arrayType ArrayType) map[string]MemberResolver {
 					identifier,
 					ArrayReverseFunctionType(arrayType),
 					arrayTypeReverseFunctionDocString,
+				)
+			},
+		},
+		ArrayTypeFilterFunctionName: {
+			Kind: common.DeclarationKindFunction,
+			Resolve: func(memoryGauge common.MemoryGauge, identifier string, targetRange ast.Range, report func(error)) *Member {
+
+				elementType := arrayType.ElementType(false)
+
+				if elementType.IsResourceType() {
+					report(
+						&InvalidResourceArrayMemberError{
+							Name:            identifier,
+							DeclarationKind: common.DeclarationKindFunction,
+							Range:           targetRange,
+						},
+					)
+				}
+
+				return NewPublicFunctionMember(
+					memoryGauge,
+					arrayType,
+					identifier,
+					ArrayFilterFunctionType(memoryGauge, elementType),
+					arrayTypeFilterFunctionDocString,
+				)
+			},
+		},
+		ArrayTypeMapFunctionName: {
+			Kind: common.DeclarationKindFunction,
+			Resolve: func(memoryGauge common.MemoryGauge, identifier string, targetRange ast.Range, report func(error)) *Member {
+				elementType := arrayType.ElementType(false)
+
+				// TODO: maybe allow for resource element type as a reference.
+				if elementType.IsResourceType() {
+					report(
+						&InvalidResourceArrayMemberError{
+							Name:            identifier,
+							DeclarationKind: common.DeclarationKindFunction,
+							Range:           targetRange,
+						},
+					)
+				}
+
+				return NewPublicFunctionMember(
+					memoryGauge,
+					arrayType,
+					identifier,
+					ArrayMapFunctionType(memoryGauge, arrayType),
+					arrayTypeMapFunctionDocString,
 				)
 			},
 		},
@@ -2360,6 +2423,81 @@ func ArrayReverseFunctionType(arrayType ArrayType) *FunctionType {
 	return &FunctionType{
 		Parameters:           []Parameter{},
 		ReturnTypeAnnotation: NewTypeAnnotation(arrayType),
+	}
+}
+
+func ArrayFilterFunctionType(memoryGauge common.MemoryGauge, elementType Type) *FunctionType {
+	// fun filter(_ function: ((T): Bool)): [T]
+	// funcType: elementType -> Bool
+	funcType := &FunctionType{
+		Parameters: []Parameter{
+			{
+				Identifier:     "element",
+				TypeAnnotation: NewTypeAnnotation(elementType),
+			},
+		},
+		ReturnTypeAnnotation: NewTypeAnnotation(BoolType),
+	}
+
+	return &FunctionType{
+		Parameters: []Parameter{
+			{
+				Label:          ArgumentLabelNotRequired,
+				Identifier:     "f",
+				TypeAnnotation: NewTypeAnnotation(funcType),
+			},
+		},
+		ReturnTypeAnnotation: NewTypeAnnotation(NewVariableSizedType(memoryGauge, elementType)),
+	}
+}
+
+func ArrayMapFunctionType(memoryGauge common.MemoryGauge, arrayType ArrayType) *FunctionType {
+	// For [T] or [T; N]
+	// fun map(_ function: ((T): U)): [U]
+	//               or
+	// fun map(_ function: ((T): U)): [U; N]
+
+	typeParameter := &TypeParameter{
+		Name: "U",
+	}
+
+	typeU := &GenericType{
+		TypeParameter: typeParameter,
+	}
+
+	var returnArrayType Type
+	switch arrayType := arrayType.(type) {
+	case *VariableSizedType:
+		returnArrayType = NewVariableSizedType(memoryGauge, typeU)
+	case *ConstantSizedType:
+		returnArrayType = NewConstantSizedType(memoryGauge, typeU, arrayType.Size)
+	default:
+		panic(errors.NewUnreachableError())
+	}
+
+	// transformFuncType: elementType -> U
+	transformFuncType := &FunctionType{
+		Parameters: []Parameter{
+			{
+				Identifier:     "element",
+				TypeAnnotation: NewTypeAnnotation(arrayType.ElementType(false)),
+			},
+		},
+		ReturnTypeAnnotation: NewTypeAnnotation(typeU),
+	}
+
+	return &FunctionType{
+		TypeParameters: []*TypeParameter{
+			typeParameter,
+		},
+		Parameters: []Parameter{
+			{
+				Label:          ArgumentLabelNotRequired,
+				Identifier:     "transform",
+				TypeAnnotation: NewTypeAnnotation(transformFuncType),
+			},
+		},
+		ReturnTypeAnnotation: NewTypeAnnotation(returnArrayType),
 	}
 }
 

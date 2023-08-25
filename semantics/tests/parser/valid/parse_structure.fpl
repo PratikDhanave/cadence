@@ -5,7 +5,7 @@ struct Test {
         self.foo = foo
     }
 
-    pub fun getFoo(): Int {
+    access(all) fun getFoo(): Int {
         return self.foo
     }
 }

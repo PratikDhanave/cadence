@@ -219,8 +219,8 @@ func (e *interpreterEnvironment) ProgramLog(message string) error {
 	return e.runtimeInterface.ProgramLog(message)
 }
 
-func (e *interpreterEnvironment) UnsafeRandom() (uint64, error) {
-	return e.runtimeInterface.UnsafeRandom()
+func (e *interpreterEnvironment) ReadRandom(buffer []byte) error {
+	return e.runtimeInterface.ReadRandom(buffer)
 }
 
 func (e *interpreterEnvironment) GetBlockAtHeight(height uint64) (block stdlib.Block, exists bool, err error) {
@@ -427,6 +427,10 @@ func (e *interpreterEnvironment) newLocationHandler() sema.LocationHandlerFunc {
 		errors.WrapPanic(func() {
 			res, err = e.runtimeInterface.ResolveLocation(identifiers, location)
 		})
+
+		if err != nil {
+			err = interpreter.WrappedExternalError(err)
+		}
 		return
 	}
 }
@@ -556,6 +560,11 @@ func (e *interpreterEnvironment) getProgram(
 			if panicErr != nil {
 				return nil, panicErr
 			}
+
+			if err != nil {
+				err = interpreter.WrappedExternalError(err)
+			}
+
 			return
 		})
 	})
@@ -573,6 +582,11 @@ func (e *interpreterEnvironment) getCode(location common.Location) (code []byte,
 			code, err = e.runtimeInterface.GetCode(location)
 		})
 	}
+
+	if err != nil {
+		err = interpreter.WrappedExternalError(err)
+	}
+
 	return
 }
 
@@ -741,6 +755,10 @@ func (e *interpreterEnvironment) newUUIDHandler() interpreter.UUIDHandlerFunc {
 		errors.WrapPanic(func() {
 			uuid, err = e.runtimeInterface.GenerateUUID()
 		})
+
+		if err != nil {
+			err = interpreter.WrappedExternalError(err)
+		}
 		return
 	}
 }
@@ -937,7 +955,7 @@ func (e *interpreterEnvironment) newOnMeterComputation() interpreter.OnMeterComp
 			err = e.runtimeInterface.MeterComputation(compKind, intensity)
 		})
 		if err != nil {
-			panic(err)
+			panic(interpreter.WrappedExternalError(err))
 		}
 	}
 }

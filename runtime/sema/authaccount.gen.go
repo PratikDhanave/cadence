@@ -391,8 +391,6 @@ var AuthAccountTypeLinkFunctionType = &FunctionType{
 }
 
 const AuthAccountTypeLinkFunctionDocString = `
-**DEPRECATED**: Instead, use ` + "`capabilities.storage.issue`" + `, and ` + "`capabilities.publish`" + ` if the path is public.
-
 Creates a capability at the given public or private path,
 which targets the given public, private, or storage path.
 
@@ -437,8 +435,6 @@ var AuthAccountTypeLinkAccountFunctionType = &FunctionType{
 }
 
 const AuthAccountTypeLinkAccountFunctionDocString = `
-**DEPRECATED**: Use ` + "`capabilities.account.issue`" + ` instead.
-
 Creates a capability at the given public or private path which targets this account.
 
 Returns nil if a link for the given capability path already exists, or the newly created capability if not.
@@ -477,8 +473,6 @@ var AuthAccountTypeGetCapabilityFunctionType = &FunctionType{
 }
 
 const AuthAccountTypeGetCapabilityFunctionDocString = `
-**DEPRECATED**: Use ` + "`capabilities.get`" + ` instead.
-
 Returns the capability at the given private or public path.
 `
 
@@ -501,8 +495,6 @@ var AuthAccountTypeGetLinkTargetFunctionType = &FunctionType{
 }
 
 const AuthAccountTypeGetLinkTargetFunctionDocString = `
-**DEPRECATED**: Use ` + "`capabilities.storage.getController`" + ` and ` + "`StorageCapabilityController.target()`" + `.
-
 Returns the target path of the capability at the given public or private path,
 or nil if there exists no capability at the given path.
 `
@@ -523,8 +515,6 @@ var AuthAccountTypeUnlinkFunctionType = &FunctionType{
 }
 
 const AuthAccountTypeUnlinkFunctionDocString = `
-**DEPRECATED**: Use ` + "`capabilities.unpublish`" + ` instead if the path is public.
-
 Removes the capability at the given public or private path.
 `
 

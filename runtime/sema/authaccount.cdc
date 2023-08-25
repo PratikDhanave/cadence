@@ -105,8 +105,6 @@ access(all) struct AuthAccount {
     /// The path must be a storage path, i.e., only the domain `storage` is allowed.
     access(all) view fun check<T: Any>(from: StoragePath): Bool
 
-    /// **DEPRECATED**: Instead, use `capabilities.storage.issue`, and `capabilities.publish` if the path is public.
-    ///
     /// Creates a capability at the given public or private path,
     /// which targets the given public, private, or storage path.
     ///
@@ -127,26 +125,18 @@ access(all) struct AuthAccount {
     /// and the target value might be moved out after the link has been created.
     access(all) fun link<T: &Any>(_ newCapabilityPath: CapabilityPath, target: Path): Capability<T>?
 
-    /// **DEPRECATED**: Use `capabilities.account.issue` instead.
-    ///
     /// Creates a capability at the given public or private path which targets this account.
     ///
     /// Returns nil if a link for the given capability path already exists, or the newly created capability if not.
     access(all) fun linkAccount(_ newCapabilityPath: PrivatePath): Capability<&AuthAccount>?
 
-    /// **DEPRECATED**: Use `capabilities.get` instead.
-    ///
     /// Returns the capability at the given private or public path.
     access(all) view fun getCapability<T: &Any>(_ path: CapabilityPath): Capability<T>
 
-    /// **DEPRECATED**: Use `capabilities.storage.getController` and `StorageCapabilityController.target()`.
-    ///
     /// Returns the target path of the capability at the given public or private path,
     /// or nil if there exists no capability at the given path.
     access(all) view fun getLinkTarget(_ path: CapabilityPath): Path?
 
-    /// **DEPRECATED**: Use `capabilities.unpublish` instead if the path is public.
-    ///
     /// Removes the capability at the given public or private path.
     access(all) fun unlink(_ path: CapabilityPath)
 

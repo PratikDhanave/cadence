@@ -123,7 +123,7 @@ func NewAuthAccountConstructor(creator AccountCreator) StandardLibraryValue {
 						address, err = creator.CreateAccount(payerAddress)
 					})
 					if err != nil {
-						panic(err)
+						panic(interpreter.WrappedExternalError(err))
 					}
 
 					return
@@ -341,7 +341,7 @@ func newAccountBalanceGetFunction(
 				balance, err = provider.GetAccountBalance(address)
 			})
 			if err != nil {
-				panic(err)
+				panic(interpreter.WrappedExternalError(err))
 			}
 
 			return
@@ -370,7 +370,7 @@ func newAccountAvailableBalanceGetFunction(
 				balance, err = provider.GetAccountAvailableBalance(address)
 			})
 			if err != nil {
-				panic(err)
+				panic(interpreter.WrappedExternalError(err))
 			}
 
 			return
@@ -409,7 +409,7 @@ func newStorageUsedGetFunction(
 					capacity, err = provider.GetStorageUsed(address)
 				})
 				if err != nil {
-					panic(err)
+					panic(interpreter.WrappedExternalError(err))
 				}
 				return capacity
 			},
@@ -448,7 +448,7 @@ func newStorageCapacityGetFunction(
 					capacity, err = provider.GetStorageCapacity(address)
 				})
 				if err != nil {
-					panic(err)
+					panic(interpreter.WrappedExternalError(err))
 				}
 				return capacity
 			},
@@ -505,7 +505,7 @@ func newAccountKeysAddFunction(
 				accountKey, err = handler.AddAccountKey(address, publicKey, hashAlgo, weight)
 			})
 			if err != nil {
-				panic(err)
+				panic(interpreter.WrappedExternalError(err))
 			}
 
 			handler.EmitEvent(
@@ -576,7 +576,7 @@ func newAccountKeysGetFunction(
 			})
 
 			if err != nil {
-				panic(err)
+				panic(interpreter.WrappedExternalError(err))
 			}
 
 			// Here it is expected the host function to return a nil key, if a key is not found at the given index.
@@ -660,7 +660,7 @@ func newAccountKeysForEachFunction(
 			})
 
 			if err != nil {
-				panic(err)
+				panic(interpreter.WrappedExternalError(err))
 			}
 
 			var accountKey *AccountKey
@@ -670,7 +670,7 @@ func newAccountKeysForEachFunction(
 					accountKey, err = provider.GetAccountKey(address, int(index))
 				})
 				if err != nil {
-					panic(err)
+					panic(interpreter.WrappedExternalError(err))
 				}
 
 				// Here it is expected the host function to return a nil key, if a key is not found at the given index.
@@ -724,7 +724,7 @@ func newAccountKeysCountGetter(
 			if err != nil {
 				// The provider might not be able to fetch the number of account keys
 				// e.g. when the account does not exist
-				panic(err)
+				panic(interpreter.WrappedExternalError(err))
 			}
 
 			return count
@@ -768,7 +768,7 @@ func newAccountKeysRevokeFunction(
 				accountKey, err = handler.RevokeAccountKey(address, index)
 			})
 			if err != nil {
-				panic(err)
+				panic(interpreter.WrappedExternalError(err))
 			}
 
 			// Here it is expected the host function to return a nil key, if a key is not found at the given index.
@@ -1136,7 +1136,7 @@ func newAccountContractsGetNamesFunction(
 			names, err = provider.GetAccountContractNames(address)
 		})
 		if err != nil {
-			panic(err)
+			panic(interpreter.WrappedExternalError(err))
 		}
 
 		values := make([]interpreter.Value, len(names))
@@ -1201,7 +1201,7 @@ func newAccountContractsGetFunction(
 				code, err = provider.GetAccountContractCode(location)
 			})
 			if err != nil {
-				panic(err)
+				panic(interpreter.WrappedExternalError(err))
 			}
 
 			if len(code) > 0 {
@@ -1267,7 +1267,7 @@ func newAccountContractsBorrowFunction(
 				code, err = handler.GetAccountContractCode(location)
 			})
 			if err != nil {
-				panic(err)
+				panic(interpreter.WrappedExternalError(err))
 			}
 			if len(code) == 0 {
 				return interpreter.Nil
@@ -1709,7 +1709,7 @@ func updateAccountContractCode(
 		err = handler.UpdateAccountContractCode(location, code)
 	})
 	if err != nil {
-		return err
+		return interpreter.WrappedExternalError(err)
 	}
 
 	if createContract {
@@ -1866,7 +1866,7 @@ func newAuthAccountContractsRemoveFunction(
 				code, err = handler.GetAccountContractCode(location)
 			})
 			if err != nil {
-				panic(err)
+				panic(interpreter.WrappedExternalError(err))
 			}
 
 			// Only remove the contract code, remove the contract value, and emit an event,
@@ -1894,7 +1894,7 @@ func newAuthAccountContractsRemoveFunction(
 					err = handler.RemoveAccountContractCode(location)
 				})
 				if err != nil {
-					panic(err)
+					panic(interpreter.WrappedExternalError(err))
 				}
 
 				// NOTE: the contract recording function delays the write
@@ -2424,7 +2424,7 @@ func issueStorageCapabilityController(
 		capabilityID, err = idGenerator.GenerateAccountID(address)
 	})
 	if err != nil {
-		panic(err)
+		panic(interpreter.WrappedExternalError(err))
 	}
 	if capabilityID == 0 {
 		panic(errors.NewUnexpectedError("invalid zero account ID"))
@@ -2506,7 +2506,7 @@ func issueAccountCapabilityController(
 		capabilityID, err = idGenerator.GenerateAccountID(address)
 	})
 	if err != nil {
-		panic(err)
+		panic(interpreter.WrappedExternalError(err))
 	}
 	if capabilityID == 0 {
 		panic(errors.NewUnexpectedError("invalid zero account ID"))
@@ -2607,10 +2607,15 @@ func getCapabilityController(
 	// Inject functions
 	switch controller := controller.(type) {
 	case *interpreter.StorageCapabilityControllerValue:
+		capabilityID := controller.CapabilityID
+
+		controller.GetCapability =
+			newCapabilityControllerGetCapabilityFunction(inter, address, controller)
+
 		controller.GetTag =
-			newCapabilityControllerGetTagFunction(inter, address, controller.CapabilityID)
+			newCapabilityControllerGetTagFunction(inter, address, capabilityID)
 		controller.SetTag =
-			newCapabilityControllerSetTagFunction(inter, address, controller.CapabilityID)
+			newCapabilityControllerSetTagFunction(inter, address, capabilityID)
 
 		controller.TargetFunction =
 			newStorageCapabilityControllerTargetFunction(inter, controller)
@@ -2620,10 +2625,15 @@ func getCapabilityController(
 			newStorageCapabilityControllerDeleteFunction(inter, address, controller)
 
 	case *interpreter.AccountCapabilityControllerValue:
+		capabilityID := controller.CapabilityID
+
+		controller.GetCapability =
+			newCapabilityControllerGetCapabilityFunction(inter, address, controller)
+
 		controller.GetTag =
-			newCapabilityControllerGetTagFunction(inter, address, controller.CapabilityID)
+			newCapabilityControllerGetTagFunction(inter, address, capabilityID)
 		controller.SetTag =
-			newCapabilityControllerSetTagFunction(inter, address, controller.CapabilityID)
+			newCapabilityControllerSetTagFunction(inter, address, capabilityID)
 
 		controller.DeleteFunction =
 			newAccountCapabilityControllerDeleteFunction(inter, address, controller)
@@ -3897,6 +3907,26 @@ func getCapabilityControllerTag(
 	}
 
 	return stringValue
+}
+
+func newCapabilityControllerGetCapabilityFunction(
+	inter *interpreter.Interpreter,
+	address common.Address,
+	controller interpreter.CapabilityControllerValue,
+) func() *interpreter.IDCapabilityValue {
+
+	addressValue := interpreter.AddressValue(address)
+	capabilityID := controller.ControllerCapabilityID()
+	borrowType := controller.CapabilityControllerBorrowType()
+
+	return func() *interpreter.IDCapabilityValue {
+		return interpreter.NewIDCapabilityValue(
+			inter,
+			capabilityID,
+			addressValue,
+			borrowType,
+		)
+	}
 }
 
 func newCapabilityControllerGetTagFunction(
