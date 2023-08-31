@@ -181,13 +181,13 @@ func newValueTestCases() map[string]valueTestCase {
 		"UFix64": {
 			value:        ufix64,
 			string:       "64.01000000",
-			goValue:      64.01000000,
+			goValue:      int64(6401000000),
 			expectedType: UFix64Type{},
 		},
 		"Fix64": {
 			value:        fix64,
 			string:       "-32.11000000",
-			goValue:      -32.11000000,
+			goValue:      int64(-3211000000),
 			expectedType: Fix64Type{},
 		},
 		"Void": {
@@ -205,7 +205,7 @@ func newValueTestCases() map[string]valueTestCase {
 		"some": {
 			value:        NewOptional(ufix64),
 			string:       "64.01000000",
-			goValue:      64.01000000,
+			goValue:      int64(6401000000),
 			expectedType: NewOptionalType(UFix64Type{}),
 		},
 		"nil": {

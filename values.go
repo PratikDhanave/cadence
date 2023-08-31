@@ -22,7 +22,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/big"
-	"strconv"
 	"unicode/utf8"
 	"unsafe"
 
@@ -1420,11 +1419,7 @@ func (v Fix64) MeteredType(common.MemoryGauge) Type {
 }
 
 func (v Fix64) ToGoValue() any {
-	value, err := strconv.ParseFloat(v.String(), 64)
-	if err != nil {
-		panic(err)
-	}
-	return value
+	return int64(v)
 }
 
 func (v Fix64) ToBigEndianBytes() []byte {
@@ -1498,11 +1493,7 @@ func (v UFix64) MeteredType(common.MemoryGauge) Type {
 }
 
 func (v UFix64) ToGoValue() any {
-	value, err := strconv.ParseFloat(v.String(), 64)
-	if err != nil {
-		panic(err)
-	}
-	return value
+	return int64(v)
 }
 
 func (v UFix64) ToBigEndianBytes() []byte {
