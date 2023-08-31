@@ -33,13 +33,14 @@ import (
 )
 
 type valueTestCase struct {
-	value        Value
-	string       string
-	goValue      any
-	exampleType  Type
-	expectedType Type
-	withType     func(value Value, ty Type) Value
-	noType       bool
+	value               Value
+	string              string
+	goValue             any
+	exampleType         Type
+	expectedType        Type
+	withType            func(value Value, ty Type) Value
+	noType              bool
+	ignoreDuplicateType bool
 }
 
 func newValueTestCases() map[string]valueTestCase {
@@ -246,8 +247,9 @@ func newValueTestCases() map[string]valueTestCase {
 			withType: func(value Value, ty Type) Value {
 				return value.(Array).WithType(ty.(ArrayType))
 			},
-			string:  "[\"\", \"TEST\"]",
-			goValue: []interface{}{"", "TEST"},
+			string:              "[\"\", \"TEST\"]",
+			goValue:             []interface{}{"", "TEST"},
+			ignoreDuplicateType: true,
 		},
 		"IntArray": {
 			value: NewArray([]Value{
@@ -258,8 +260,9 @@ func newValueTestCases() map[string]valueTestCase {
 			withType: func(value Value, ty Type) Value {
 				return value.(Array).WithType(ty.(ArrayType))
 			},
-			string:  "[10, 5]",
-			goValue: []interface{}{10, 5},
+			string:              "[10, 5]",
+			goValue:             []interface{}{10, 5},
+			ignoreDuplicateType: true,
 		},
 
 		"Dictionary": {
@@ -281,19 +284,20 @@ func newValueTestCases() map[string]valueTestCase {
 			value: NewDictionary([]KeyValuePair{
 				{
 					Key:   String("key"),
-					Value: String("value"),
+					Value: String("value1"),
 				},
 				{
-					Key:   String("key2"),
-					Value: String(""),
+					Key:   String(""),
+					Value: String("value2"),
 				},
 			}),
 			exampleType: NewDictionaryType(StringType{}, StringType{}),
 			withType: func(value Value, ty Type) Value {
 				return value.(Dictionary).WithType(ty.(*DictionaryType))
 			},
-			string:  "{\"key\": \"value\", \"key2\" : \"\"}",
-			goValue: map[interface{}]interface{}{"key": "value", "key2": ""},
+			string:              "{\"key\": \"value1\", \"\": \"value2\"}",
+			goValue:             map[interface{}]interface{}{"key": "value1", "": "value2"},
+			ignoreDuplicateType: true,
 		},
 		"Bytes": {
 			value:        NewBytes([]byte{0x1, 0x2}),
@@ -494,8 +498,9 @@ func newValueTestCases() map[string]valueTestCase {
 				},
 				nil,
 			),
-			expectedType: NewCapabilityType(nil),
-			string:       "Capability(address: 0x0000000102030405, path: /public/foo)",
+			expectedType:        NewCapabilityType(nil),
+			string:              "Capability(address: 0x0000000102030405, path: /public/foo)",
+			ignoreDuplicateType: true, // ID and path capabilities have the same type
 		},
 		"Capability (ID)": {
 			value: NewIDCapability(
@@ -503,8 +508,9 @@ func newValueTestCases() map[string]valueTestCase {
 				BytesToAddress([]byte{1, 2, 3, 4, 5}),
 				IntType{},
 			),
-			expectedType: NewCapabilityType(IntType{}),
-			string:       "Capability<Int>(address: 0x0000000102030405, id: 3)",
+			expectedType:        NewCapabilityType(IntType{}),
+			string:              "Capability<Int>(address: 0x0000000102030405, id: 3)",
+			ignoreDuplicateType: true, // ID and path capabilities have the same type
 		},
 		"Function": {
 			value: NewFunction(
@@ -1011,19 +1017,10 @@ func TestValue_Type(t *testing.T) {
 				// Current known exceptions:
 				// - Capability: PathCapabilityValue | IDCapabilityValue
 
-				var ignoreDuplicateType bool
-
-				if _, ok := returnedType.(*CapabilityType); ok {
-					switch value.(type) {
-					case IDCapability, PathCapability:
-						ignoreDuplicateType = true
-					}
-				}
-
-				if !ignoreDuplicateType {
+				if !testCase.ignoreDuplicateType {
 					require.NotContains(t, checkedTypes, returnedType)
+					checkedTypes[returnedType] = struct{}{}
 				}
-				checkedTypes[returnedType] = struct{}{}
 			}
 		})
 	}
