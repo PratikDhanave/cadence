@@ -101,14 +101,8 @@ func (i WasmtimeWebAssemblyInstance) GetExport(gauge common.MemoryGauge, name st
 	return nil, fmt.Errorf("unsupported export")
 }
 
-func newWasmtimeFunctionWebAssemblyExport(
-	gauge common.MemoryGauge,
-	function *wasmtime.Func,
-	store *wasmtime.Store,
-) (
-	*stdlib.WebAssemblyExport,
-	error,
-) {
+func newWasmtimeFunctionWebAssemblyExport(gauge common.MemoryGauge, function *wasmtime.Func, store *wasmtime.Store) (*stdlib.WebAssemblyExport, error) {
+
 	funcType := function.Type(store)
 
 	functionType := &sema.FunctionType{}
@@ -155,90 +149,96 @@ func newWasmtimeFunctionWebAssemblyExport(
 		return nil, fmt.Errorf("unsupported export: function has more than one result")
 	}
 
-	hostFunctionValue := interpreter.NewHostFunctionValue(
-		gauge,
-		functionType,
-		func(invocation interpreter.Invocation) interpreter.Value {
-			arguments := invocation.Arguments
-			inter := invocation.Interpreter
+	hostfunction := func(invocation interpreter.Invocation) interpreter.Value {
 
-			// Convert the arguments
+		arguments := invocation.Arguments
 
-			convertedArguments := make([]any, 0, len(arguments))
+		inter := invocation.Interpreter
 
-			for i, argument := range arguments {
-				ty := functionType.Parameters[i].TypeAnnotation.Type
+		// Convert the arguments
 
-				var convertedArgument any
+		convertedArguments := make([]any, 0, len(arguments))
 
-				switch ty {
-				case sema.Int32Type:
-					convertedArgument = int32(argument.(interpreter.Int32Value))
+		for i, argument := range arguments {
 
-				case sema.Int64Type:
-					convertedArgument = int64(argument.(interpreter.Int64Value))
+			ty := functionType.Parameters[i].TypeAnnotation.Type
 
-				default:
-					panic(errors.NewUnreachableError())
-				}
+			var convertedArgument any
 
-				convertedArguments = append(convertedArguments, convertedArgument)
-			}
+			switch ty {
 
-			// Call the function, with metering
+			case sema.Int32Type:
+				convertedArgument = int32(argument.(interpreter.Int32Value))
 
-			fuelConsumedBefore, _ := store.FuelConsumed()
-
-			// TODO: get remaining computation and convert to fuel.
-			//   needs e.g. invocation.Interpreter.RemainingComputation()
-			const todoAvailableFuel = 1000
-			err := store.AddFuel(todoAvailableFuel)
-			if err != nil {
-				// TODO: wrap error
-				panic(err)
-			}
-
-			result, err := function.Call(store, convertedArguments...)
-			if err != nil {
-				// TODO: wrap error
-				panic(err)
-			}
-
-			fuelConsumedAfter, _ := store.FuelConsumed()
-			fuelDelta := fuelConsumedAfter - fuelConsumedBefore
-
-			inter.ReportComputation(common.ComputationKindWebAssemblyFuel, uint(fuelDelta))
-
-			remainingFuel, err := store.ConsumeFuel(0)
-			if err != nil {
-				// TODO: wrap error
-				panic(err)
-			}
-
-			remainingFuel, err = store.ConsumeFuel(remainingFuel)
-			if err != nil {
-				// TODO: wrap error
-				panic(err)
-			}
-
-			if remainingFuel != 0 {
-				panic(errors.NewUnreachableError())
-			}
-
-			// Return the result
-
-			switch result := result.(type) {
-			case int32:
-				return interpreter.Int32Value(result)
-
-			case int64:
-				return interpreter.Int64Value(result)
+			case sema.Int64Type:
+				convertedArgument = int64(argument.(interpreter.Int64Value))
 
 			default:
 				panic(errors.NewUnreachableError())
-
 			}
-		},
+
+			convertedArguments = append(convertedArguments, convertedArgument)
+		}
+
+		// Call the function, with metering
+
+		fuelConsumedBefore, _ := store.FuelConsumed()
+
+		// TODO: get remaining computation and convert to fuel.
+		//   needs e.g. invocation.Interpreter.RemainingComputation()
+		const todoAvailableFuel = 1000
+		err := store.AddFuel(todoAvailableFuel)
+		if err != nil {
+			// TODO: wrap error
+			panic(err)
+		}
+
+		result, err := function.Call(store, convertedArguments...)
+		if err != nil {
+			// TODO: wrap error
+			panic(err)
+		}
+
+		fuelConsumedAfter, _ := store.FuelConsumed()
+		fuelDelta := fuelConsumedAfter - fuelConsumedBefore
+
+		inter.ReportComputation(common.ComputationKindWebAssemblyFuel, uint(fuelDelta))
+
+		remainingFuel, err := store.ConsumeFuel(0)
+		if err != nil {
+			// TODO: wrap error
+			panic(err)
+		}
+
+		remainingFuel, err = store.ConsumeFuel(remainingFuel)
+		if err != nil {
+			// TODO: wrap error
+			panic(err)
+		}
+
+		if remainingFuel != 0 {
+			panic(errors.NewUnreachableError())
+		}
+
+		// Return the result
+
+		switch result := result.(type) {
+		case int32:
+			return interpreter.Int32Value(result)
+
+		case int64:
+			return interpreter.Int64Value(result)
+
+		default:
+			panic(errors.NewUnreachableError())
+
+		}
+	}
+
+	hostFunctionValue := interpreter.NewHostFunctionValue(
+		gauge,
+		functionType,
+		hostfunction,
 	)
 
 	return &stdlib.WebAssemblyExport{

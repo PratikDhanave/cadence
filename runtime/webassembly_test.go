@@ -72,18 +72,25 @@ func TestRuntimeWebAssemblyAdd(t *testing.T) {
 
 	var webAssemblyFuelComputationMeterings []uint
 
+	onMeterComputationfn := func(compKind common.ComputationKind, intensity uint) error {
+		if compKind != common.ComputationKindWebAssemblyFuel {
+			return nil
+		}
+
+	onCompileWebAssemblyfn := 	func(bytes []byte) (stdlib.WebAssemblyModule, error) {
+		return NewWasmtimeWebAssemblyModule(bytes)
+	}
+
 	runtimeInterface := &TestRuntimeInterface{
+
 		Storage: NewTestLedger(nil, nil),
-		OnCompileWebAssembly: func(bytes []byte) (stdlib.WebAssemblyModule, error) {
-			return NewWasmtimeWebAssemblyModule(bytes)
-		},
+		
+		OnCompileWebAssembly : onCompileWebAssemblyfn,
+		
 		OnDecodeArgument: func(b []byte, _ cadence.Type) (cadence.Value, error) {
 			return json.Decode(nil, b)
 		},
-		OnMeterComputation: func(compKind common.ComputationKind, intensity uint) error {
-			if compKind != common.ComputationKindWebAssemblyFuel {
-				return nil
-			}
+	onMeterComputation :  onMeterComputationfn,
 
 			webAssemblyFuelComputationMeterings = append(
 				webAssemblyFuelComputationMeterings,
